@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +11,7 @@ namespace SyncHole.App
     public class SyncHoleService : ISyncService
     {
         private readonly ILogger<SyncHoleService> _logger;
-        private readonly IConfiguration _configuration;
+        private readonly IConfigManager _configManager;
         private readonly FileSystemWatcher _fileWatcher;
         private readonly IWorkerFactory _workerFactory;
         private readonly List<ISyncWorker> _batchTasks;
@@ -21,10 +20,10 @@ namespace SyncHole.App
         public SyncHoleService(FileSystemWatcher fileWatcher,
             IWorkerFactory workerFactory,
             ILogger<SyncHoleService> logger,
-            IConfiguration configuration)
+            IConfigManager configManager)
         {
             _logger = logger;
-            _configuration = configuration;
+            _configManager = configManager;
             _fileWatcher = fileWatcher;
             _workerFactory = workerFactory;
             _batchTasks = new List<ISyncWorker>();
@@ -81,7 +80,7 @@ namespace SyncHole.App
 
         private void LoadBatchTasks()
         {
-            var batchSize = _configuration.GetValue<int>("SyncOptions:BatchSize");
+            var batchSize = _configManager.SyncBatchSize;
 
             //enumerate files and load only those that fit in the batch
             var fileEnumerable = Directory.EnumerateFiles(

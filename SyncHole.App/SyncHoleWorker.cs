@@ -9,12 +9,16 @@ namespace SyncHole.App
     public class SyncHoleWorker : ISyncWorker
     {
         private readonly IStorageClient _client;
+        private readonly IConfigManager _configManager;
         private readonly FileInfo _fileInfo;
 
-        public SyncHoleWorker(IStorageClient client, string filePath)
+        public SyncHoleWorker(IStorageClient client,
+            IConfigManager configManager,
+            string filePath)
         {
             FilePath = filePath;
             _client = client;
+            _configManager = configManager;
             _fileInfo = new FileInfo(filePath);
         }
 
@@ -28,7 +32,8 @@ namespace SyncHole.App
             IsActive = true;
 
             //use creation time for container name
-            var containerName = _fileInfo.CreationTimeUtc.ToString("yyyy-MM-dd");
+            var format = _configManager.ArchiveNameFormat;
+            var containerName = _fileInfo.CreationTimeUtc.ToString(format);
             try
             {
                 var job = await _client.InitializeAsync(containerName, _fileInfo.FullName);

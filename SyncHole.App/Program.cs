@@ -4,10 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SyncHole.Core.Client;
 using SyncHole.Core.Client.AWS;
-using System;
-using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Threading.Tasks;
 
 namespace SyncHole.App
@@ -31,17 +28,22 @@ namespace SyncHole.App
              .ConfigureLogging((hostContext, configLogging) => { configLogging.AddDebug(); })
              .ConfigureServices((hostContext, services) =>
              {
+                 //setup the configraution manager
+                 var configManager = new ConfigManager(hostContext.Configuration);
+                 services.AddSingleton<IConfigManager>(configManager);
+
                  //fetch the path to monitor
-                 var path = hostContext.Configuration.GetValue<string>("SyncOptions:SyncDirectory");
+                 var path = configManager.SyncDirectory;
                  if (!Directory.Exists(path))
                  {
                      Directory.CreateDirectory(path);
                  }
+
                  //create the file system watcher
                  var fsWatcher = new FileSystemWatcher(path);
 
                  //show welcome info
-                 PrintWelcome(path);
+                 ConsolePrinter.PrintWelcome(path);
 
                  //setup the file system watcher
                  services.AddSingleton(fsWatcher);
@@ -62,40 +64,6 @@ namespace SyncHole.App
              });
 
             await hostBuilder.RunConsoleAsync();
-        }
-
-        private static void PrintWelcome(string syncPath)
-        {
-            var version = GetVersion();
-            var preColor = Console.ForegroundColor;
-
-            Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.WriteLine(@"..................................................................................");
-            Console.WriteLine(@"............................................$$\...$$\...........$$\...............");
-            Console.WriteLine(@"............................................$$.|..$$.|..........$$.|..............");
-            Console.WriteLine(@".....$$$$$$$\.$$\...$$\.$$$$$$$\...$$$$$$$\.$$.|..$$.|.$$$$$$\..$$.|.$$$$$$\......");
-            Console.WriteLine(@"....$$.._____|$$.|..$$.|$$..__$$\.$$.._____|$$$$$$$$.|$$..__$$\.$$.|$$..__$$\.....");
-            Console.WriteLine(@"....\$$$$$$\..$$.|..$$.|$$.|..$$.|$$./......$$..__$$.|$$./..$$.|$$.|$$$$$$$$.|....");
-            Console.WriteLine(@".....\____$$\.$$.|..$$.|$$.|..$$.|$$.|......$$.|..$$.|$$.|..$$.|$$.|$$...____|....");
-            Console.WriteLine(@"....$$$$$$$..|\$$$$$$$.|$$.|..$$.|\$$$$$$$\.$$.|..$$.|\$$$$$$..|$$.|\$$$$$$$\.....");
-            Console.WriteLine(@"....\_______/..\____$$.|\__|..\__|.\_______|\__|..\__|.\______/.\__|.\_______|....");
-            Console.WriteLine(@"..............$$\...$$.|..........................................................");
-            Console.WriteLine(@"..............\$$$$$$..|..........................................................");
-            Console.WriteLine(@"...............\______/...........................................................");
-            Console.WriteLine($"v{version}".PadLeft(82, '.'));
-
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Sync Path: {syncPath}");
-
-            Console.ForegroundColor = preColor;
-        }
-
-        private static string GetVersion()
-        {
-            var assembly = Assembly.GetExecutingAssembly();
-            var fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
-            var version = fvi.FileVersion;
-            return version;
         }
     }
 }

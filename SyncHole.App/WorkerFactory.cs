@@ -5,15 +5,17 @@ namespace SyncHole.App
     public class WorkerFactory : IWorkerFactory
     {
         private readonly IStorageClient _storageClient;
+        private readonly IConfigManager _configManager;
 
-        public WorkerFactory(IStorageClient storageClient)
+        public WorkerFactory(IStorageClient storageClient, IConfigManager configManager)
         {
             _storageClient = storageClient;
+            _configManager = configManager;
         }
 
         public ISyncWorker CreateWorker(string syncFilePath)
         {
-            return new SyncHoleWorker(_storageClient, syncFilePath);
+            return new SyncHoleWorker(_storageClient, _configManager, syncFilePath);
         }
     }
 }
