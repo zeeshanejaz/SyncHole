@@ -13,5 +13,9 @@ namespace SyncHole.Core.Model
         public List<string> ChunkChecksums { get; set; } = new List<string>();
 
         public long CurrentPosition { get; set; } = 0;
+
+        public long TotalSize { get; set; }
+
+        public string FilePath { get; set; }
     }
 }

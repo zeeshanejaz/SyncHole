@@ -2,7 +2,7 @@
 using System.IO;
 using System.Threading;
 
-namespace SyncHole.App
+namespace SyncHole.App.Utility
 {
     public static class FileUtils
     {

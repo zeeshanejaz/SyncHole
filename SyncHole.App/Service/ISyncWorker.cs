@@ -1,11 +1,12 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace SyncHole.App
+namespace SyncHole.App.Service
 {
     public interface ISyncWorker
     {
-        Task RunAsync();
+        Task RunAsync(CancellationToken token);
 
         bool IsActive { get; }
 

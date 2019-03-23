@@ -1,6 +1,7 @@
-﻿using SyncHole.Core.Client;
+﻿using SyncHole.App.Utility;
+using SyncHole.Core.Client;
 
-namespace SyncHole.App
+namespace SyncHole.App.Service
 {
     public class WorkerFactory : IWorkerFactory
     {

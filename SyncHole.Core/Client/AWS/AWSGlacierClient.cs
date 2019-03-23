@@ -3,7 +3,6 @@ using Amazon.Glacier;
 using Amazon.Glacier.Model;
 using SyncHole.Core.Exceptions;
 using SyncHole.Core.Model;
-using System;
 using System.Threading.Tasks;
 
 namespace SyncHole.Core.Client.AWS
@@ -12,11 +11,6 @@ namespace SyncHole.Core.Client.AWS
     {
         private readonly AmazonGlacierClient _client;
         private const long DefaultChunkSize = 4194304; //4 MB chuck size
-
-        public event StartedEventHandler Started;
-        public event ProgressEventHandler Progress;
-        public event FailureEventHandler Failed;
-        public event CompletedEventHandler Completed;
 
         public AWSGlacierClient(AWSCredentials credentials)
         {
@@ -40,7 +34,7 @@ namespace SyncHole.Core.Client.AWS
             };
 
             //create place holder for parts of a archive
-            var response = await ExecuteAsync(_client.InitiateMultipartUploadAsync(request));
+            var response = await _client.InitiateMultipartUploadAsync(request);
             var job = new UploadJob
             {
                 UploadId = response.UploadId,
@@ -48,16 +42,13 @@ namespace SyncHole.Core.Client.AWS
                 ChunkSize = chunkSize ?? DefaultChunkSize
             };
 
-            //trigger the started event
-            OnStarted(job);
-
             return job;
         }
 
         private async Task CreateVaultAsync(string containerName)
         {
             var createRequest = new CreateVaultRequest { VaultName = containerName };
-            var createResponse = await ExecuteAsync(_client.CreateVaultAsync(createRequest));
+            var createResponse = await _client.CreateVaultAsync(createRequest);
             if (!createResponse.IsSuccess())
             {
                 throw new OperationFailedException<CreateVaultResponse>("Unable to create the container", createResponse);
@@ -74,7 +65,7 @@ namespace SyncHole.Core.Client.AWS
             var request = new UploadMultipartPartRequest
             {
                 VaultName = job.VaultName,
-                Body = item.DataStream,
+                Body = chunkStream,
                 Checksum = chunkChecksum,
                 UploadId = job.UploadId
             };
@@ -84,15 +75,12 @@ namespace SyncHole.Core.Client.AWS
                 job.CurrentPosition + chunkStream.Length - 1);
 
             //upload this part
-            var response = await ExecuteAsync(_client.UploadMultipartPartAsync(request), job);
+            var response = await _client.UploadMultipartPartAsync(request);
             response.EnsureSuccess();
 
             //commit progress
             job.ChunkChecksums.Add(chunkChecksum);
             job.CurrentPosition += chunkStream.Length;
-
-            //trigger the progress event
-            OnProgress(job);
         }
 
         public async Task<string> FinishUploadAsync(UploadJob job, UploadItem item)
@@ -109,48 +97,9 @@ namespace SyncHole.Core.Client.AWS
             };
 
             //finish up multipart upload
-            var response = await ExecuteAsync(_client.CompleteMultipartUploadAsync(request), job);
+            var response = await _client.CompleteMultipartUploadAsync(request);
             var achiveId = response.ArchiveId;
-
-            //trigger the completion event
-            OnCompleted(job, achiveId);
-
             return achiveId;
-        }
-
-        #region Event Handlers
-        protected virtual void OnStarted(UploadJob job)
-        {
-            Started?.Invoke(job);
-        }
-
-        protected virtual void OnProgress(UploadJob job)
-        {
-            Progress?.Invoke(job);
-        }
-
-        protected virtual void OnFailed(UploadJob job, Exception ex)
-        {
-            Failed?.Invoke(job);
-        }
-
-        protected virtual void OnCompleted(UploadJob job, string archiveId)
-        {
-            Completed?.Invoke(job, archiveId);
-        }
-        #endregion Event Handlers
-
-        private async Task<T> ExecuteAsync<T>(Task<T> task, UploadJob job = null)
-        {
-            try
-            {
-                return await task;
-            }
-            catch (Exception ex)
-            {
-                OnFailed(job, ex);
-                throw new OperationFailedException<UploadJob>("Failed to perform specified task", job, ex);
-            }
         }
     }
 }

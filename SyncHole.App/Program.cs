@@ -2,16 +2,24 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using SyncHole.App.Console;
+using SyncHole.App.Service;
 using SyncHole.Core.Client;
 using SyncHole.Core.Client.AWS;
 using System.IO;
 using System.Threading.Tasks;
+using SyncHole.App.Utility;
 
 namespace SyncHole.App
 {
     public class Program
     {
         public static async Task Main(string[] args)
+        {
+            await StartHostAsync();
+        }
+
+        private static async Task StartHostAsync()
         {
             var hostBuilder = new HostBuilder()
              .UseContentRoot(Directory.GetCurrentDirectory())

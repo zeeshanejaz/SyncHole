@@ -1,4 +1,4 @@
-﻿namespace SyncHole.App
+﻿namespace SyncHole.App.Service
 {
     public interface IWorkerFactory
     {
