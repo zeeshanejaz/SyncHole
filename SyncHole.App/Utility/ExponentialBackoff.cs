@@ -5,6 +5,7 @@ namespace SyncHole.App.Utility
 {
     public class ExponentialBackoff
     {
+        private const int MaxPow = 100000;
         private readonly int _delay, _maxDelay;
         private int _pow;
 
@@ -15,18 +16,19 @@ namespace SyncHole.App.Utility
             _pow = 1;
         }
 
-        public Task DelayAsync(bool expand)
+        public Task DelayAsync(bool increment)
         {
-            if (expand)
+            if (increment)
             {
                 _pow = _pow << 1;
             }
-            else
+
+            if (!increment || _pow > MaxPow)
             {
                 _pow = 1;
             }
 
-            var currentDelay = Math.Min(_delay * _pow / 2, _maxDelay);
+            var currentDelay = Math.Min(_delay * _pow, _maxDelay);
             return Task.Delay(currentDelay);
         }
     }

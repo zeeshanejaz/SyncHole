@@ -4,6 +4,7 @@ using SyncHole.Core.Client;
 using SyncHole.Core.Model;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -75,8 +76,7 @@ namespace SyncHole.App.Service
                     UpdateProgress(job);
                 }
 
-                //delete the uploaded file
-                _fileInfo.Delete();
+                CleanUp();
             }
             catch (Exception ex)
             {
@@ -85,6 +85,39 @@ namespace SyncHole.App.Service
             }
 
             IsActive = false;
+        }
+
+        private void CleanUp()
+        {
+            //delete the uploaded file
+            _fileInfo.Delete();
+
+            CleanUpDirectory(_fileInfo.Directory);
+        }
+
+        private void CleanUpDirectory(DirectoryInfo directory)
+        {
+            while (true)
+            {
+                if (directory == null 
+                    || directory.FullName.Equals(_configManager.SyncDirectory, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    return;
+                }
+
+                //check if there are more files in this directory
+                var hasFiles = directory.EnumerateFiles().Any();
+                if (hasFiles)
+                {
+                    return;
+                }
+
+                //all files are deleted, remove directory
+                directory.Delete();
+
+                //cleanup the parent directory recursively
+                directory = directory.Parent;
+            }
         }
 
         public bool IsActive { get; private set; }
