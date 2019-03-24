@@ -24,8 +24,8 @@ SyncHole App reads the configuration from the `appsettings.json` file. Even thou
 | SyncOptions:VaultNameFormat    | Creation date of files is used to create new archive vaults. Use this property to set the format e.g., `yyyy-MM-dd`.                                                                           |
 | SyncOptions:IgnoreRegex        | Regular expression for ignoring certain files e.g., `^.*db$`.                                                                                                                                  |
 
-## How to Run
-SyncHole App is built as a generic aspnet host, which means it doesn't have Http services and is a bare-bone application host. You can run SyncHole App from the project directory using the `dotnet run` command. For creating portable execution package, follo these steps.
+## How to Run 🚀
+SyncHole App is built as a generic aspnet host, which means it doesn't have Http services and is a bare-bone application host. You can run SyncHole App from the project directory using the `dotnet run` command. For creating portable execution package, follow these steps.
 
 1. Run the restore command `dotnet restore`
 2. Run the build command for compilation `dotnet build`
