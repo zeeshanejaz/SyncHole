@@ -99,7 +99,8 @@ namespace SyncHole.App.Service
         {
             while (true)
             {
-                if (directory == null 
+                //dont delete the sync dir or crawl any further above
+                if (directory == null
                     || directory.FullName.Equals(_configManager.SyncDirectory, StringComparison.InvariantCultureIgnoreCase))
                 {
                     return;
