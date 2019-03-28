@@ -1,0 +1,69 @@
+﻿using SyncHole.App.Utility;
+using SyncHole.Core.Manifest;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace SyncHole.App.Service
+{
+    public class SyncManifest
+    {
+        private readonly IConfigManager _configManager;
+        private readonly ManifestCollection _manifestCollection;
+        private readonly SemaphoreSlim _semaphoreSlim;
+
+        public SyncManifest(IConfigManager configManager)
+        {
+            _configManager = configManager;
+            _manifestCollection = new ManifestCollection();
+            _semaphoreSlim = new SemaphoreSlim(1, 1);
+        }
+
+        public async Task ReloadAsync()
+        {
+            //load from the file
+            var manifestPath = Path.Combine(_configManager.SyncDirectory, Constants.ManifestFileName);
+
+            await _semaphoreSlim.WaitAsync();
+            try
+            {
+                //empty the collection before reloading
+                _manifestCollection.Clear();
+                await _manifestCollection.LoadManifestAsync(manifestPath);
+            }
+            finally
+            {
+                _semaphoreSlim.Release();
+            }
+        }
+
+        public async Task SaveAsync()
+        {
+            //load from the file
+            var manifestPath = Path.Combine(_configManager.SyncDirectory, Constants.ManifestFileName);
+
+            await _semaphoreSlim.WaitAsync();
+            try
+            {
+                await _manifestCollection.SaveManifestAsync(manifestPath);
+            }
+            finally
+            {
+                _semaphoreSlim.Release();
+            }
+        }
+
+        public async Task AddAsync(ManifestItem manifestItem)
+        {
+            await _semaphoreSlim.WaitAsync();
+            try
+            {
+                _manifestCollection.Add(manifestItem);
+            }
+            finally
+            {
+                _semaphoreSlim.Release();
+            }
+        }
+    }
+}

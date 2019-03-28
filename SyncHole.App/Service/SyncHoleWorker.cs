@@ -1,8 +1,10 @@
 ﻿using SyncHole.App.Console;
 using SyncHole.App.Utility;
 using SyncHole.Core.Client;
+using SyncHole.Core.Manifest;
 using SyncHole.Core.Model;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -16,6 +18,7 @@ namespace SyncHole.App.Service
         private readonly IConfigManager _configManager;
         private readonly FileInfo _fileInfo;
         private readonly ProgressPrinter _progressPrinter;
+        private readonly ManifestItem _itemManifest;
 
         public SyncHoleWorker(IStorageClient client,
             IConfigManager configManager,
@@ -26,7 +29,23 @@ namespace SyncHole.App.Service
             _configManager = configManager;
             _fileInfo = new FileInfo(filePath);
             _progressPrinter = new ProgressPrinter();
+
+
+            //use creation time for container name
+            var format = _configManager.VaultNameFormat;
+            var containerName = _fileInfo.CreationTimeUtc.ToString(format);
+
+            _itemManifest = new ManifestItem
+            {
+                FilePath = _fileInfo.FullName,
+                Status = JobStatus.Pending.ToString(),
+                CurrentPosition = "0",
+                ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture),
+                ContainerName = containerName
+            };
         }
+
+        public ManifestItem ItemManifest => _itemManifest;
 
         public async Task RunAsync(CancellationToken token)
         {
@@ -37,14 +56,15 @@ namespace SyncHole.App.Service
 
             IsActive = true;
 
-            //use creation time for container name
-            var format = _configManager.VaultNameFormat;
-            var containerName = _fileInfo.CreationTimeUtc.ToString(format);
             try
             {
                 //validate cancellation before making the API call
                 token.ThrowIfCancellationRequested();
-                var job = await _client.InitializeAsync(containerName, _fileInfo.FullName);
+                var job = await _client.InitializeAsync(_itemManifest.ContainerName, _fileInfo.FullName);
+
+                //update manifest to indicate progress
+                _itemManifest.UploadId = job.UploadId;
+                _itemManifest.Status = JobStatus.InProgress.ToString();
 
                 using (var fs = _fileInfo.OpenRead())
                 {
@@ -65,12 +85,23 @@ namespace SyncHole.App.Service
 
                         //upload next chunk
                         await _client.UploadChunkAsync(job, item);
+
+                        //update the manifest
+                        _itemManifest.CurrentPosition = job.CurrentPosition.ToString();
+                        _itemManifest.ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture);
+
                         UpdateProgress(job);
                     }
 
                     //validate cancellation before making the API call
                     token.ThrowIfCancellationRequested();
-                    await _client.FinishUploadAsync(job, item);
+                    var archiveId = await _client.FinishUploadAsync(job, item);
+
+                    //mark manifest on complete
+                    _itemManifest.Status = JobStatus.Completed.ToString();
+                    _itemManifest.CurrentPosition = job.CurrentPosition.ToString();
+                    _itemManifest.ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture);
+                    _itemManifest.ArchiveId = archiveId;
 
                     fs.Close();
                     UpdateProgress(job);
@@ -82,6 +113,10 @@ namespace SyncHole.App.Service
             {
                 HasFailed = true;
                 Exception = ex;
+
+                //update manifest to indicate failure
+                _itemManifest.Status = JobStatus.Failed.ToString();
+                _itemManifest.ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture);
             }
 
             IsActive = false;

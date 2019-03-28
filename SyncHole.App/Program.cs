@@ -4,11 +4,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SyncHole.App.Console;
 using SyncHole.App.Service;
+using SyncHole.App.Utility;
 using SyncHole.Core.Client;
 using SyncHole.Core.Client.AWS;
 using System.IO;
 using System.Threading.Tasks;
-using SyncHole.App.Utility;
 
 namespace SyncHole.App
 {
@@ -39,6 +39,11 @@ namespace SyncHole.App
                  //setup the configraution manager
                  var configManager = new ConfigManager(hostContext.Configuration);
                  services.AddSingleton<IConfigManager>(configManager);
+
+                 //load manifest from file
+                 var manifest = new SyncManifest(configManager);
+                 manifest.ReloadAsync().Wait();
+                 services.AddSingleton(manifest);
 
                  //fetch the path to monitor
                  var path = configManager.SyncDirectory;

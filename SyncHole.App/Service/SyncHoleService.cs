@@ -15,14 +15,16 @@ namespace SyncHole.App.Service
         private readonly IWorkerFactory _workerFactory;
         private readonly CancellationTokenSource _cts;
         private readonly ExponentialBackoff _expBackoff;
+        private readonly SyncManifest _syncManifest;
 
         public SyncHoleService(
             IWorkerFactory workerFactory,
             ILogger<SyncHoleService> logger,
-            IConfigManager configManager)
+            IConfigManager configManager, SyncManifest syncManifest)
         {
             _logger = logger;
             _configManager = configManager;
+            _syncManifest = syncManifest;
             _workerFactory = workerFactory;
             _cts = new CancellationTokenSource();
             _expBackoff = new ExponentialBackoff(100, 60000);
@@ -38,6 +40,11 @@ namespace SyncHole.App.Service
                 while (true)
                 {
                     var uploaded = await RunNextWorkerAsync();
+                    if (uploaded)
+                    {
+                        await _syncManifest.SaveAsync();
+                    }
+
                     await _expBackoff.DelayAsync(!uploaded);
                 }
             }
@@ -63,9 +70,10 @@ namespace SyncHole.App.Service
             {
                 var fileName = Path.GetFileName(filePath);
 
-                //ignore the file that matches the regex
-                if (!string.IsNullOrWhiteSpace(_configManager.IgnoreFileRegex)
-                    && Regex.IsMatch(fileName, _configManager.IgnoreFileRegex))
+                //ignore the file that matches the regex, or is the manifest file
+                if ((!string.IsNullOrWhiteSpace(_configManager.IgnoreFileRegex)
+                        && Regex.IsMatch(fileName, _configManager.IgnoreFileRegex))
+                    || filePath.EndsWith(Constants.ManifestFileName))
                 {
                     continue;
                 }
@@ -84,6 +92,9 @@ namespace SyncHole.App.Service
             //create upload worker
             var worker = _workerFactory.CreateWorker(firstFile);
 
+            //this manifest will keep track of the progress
+            await _syncManifest.AddAsync(worker.ItemManifest);
+
             _logger.LogTrace($"Starting upload process: {worker.FilePath}");
 
             //start background task
@@ -93,11 +104,11 @@ namespace SyncHole.App.Service
             return true;
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogTrace("Stopping the SyncHole service");
+            await _syncManifest.SaveAsync();
             _cts.Cancel();
-            return Task.CompletedTask;
         }
     }
 }

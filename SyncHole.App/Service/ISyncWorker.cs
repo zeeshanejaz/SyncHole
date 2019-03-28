@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SyncHole.Core.Manifest;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,5 +16,7 @@ namespace SyncHole.App.Service
         Exception Exception { get; }
 
         string FilePath { get; }
+
+        ManifestItem ItemManifest { get; }
     }
 }
