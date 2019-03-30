@@ -1,26 +1,18 @@
-﻿namespace SyncHole.Core.Manifest
+﻿using System;
+using System.Collections.Generic;
+
+namespace SyncHole.Core.Manifest
 {
     public class ManifestItem
     {
-        [Position(0)]
         public string FilePath { get; set; }
-
-        [Position(1)]
-        public string CurrentPosition { get; set; }
-
-        [Position(2)]
+        public long CurrentPosition { get; set; }
         public string ContainerName { get; set; }
-
-        [Position(3)]
         public string ArchiveId { get; set; }
-
-        [Position(4)]
         public string UploadId { get; set; }
-
-        [Position(5)]
-        public string ProcessedAt { get; set; }
-
-        [Position(6)]
+        public List<string> ChunkHashes { get; set; }
+        public DateTime ProcessedAt { get; set; }
         public string Status { get; set; }
+        public long ChunkSize { get; set; }
     }
 }

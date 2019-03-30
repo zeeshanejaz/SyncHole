@@ -4,9 +4,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SyncHole.App.Console;
 using SyncHole.App.Service;
+using SyncHole.App.Service.Worker;
 using SyncHole.App.Utility;
 using SyncHole.Core.Client;
 using SyncHole.Core.Client.AWS;
+using SyncHole.Core.Manifest;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -23,7 +25,9 @@ namespace SyncHole.App
         {
             var hostBuilder = new HostBuilder()
              .UseContentRoot(Directory.GetCurrentDirectory())
+#if DEBUG
              .UseEnvironment("Development")
+#endif
              .ConfigureAppConfiguration((hostingContext, config) =>
              {
                  var env = hostingContext.HostingEnvironment;
@@ -33,15 +37,22 @@ namespace SyncHole.App
                          optional: true, reloadOnChange: true)
                      .AddEnvironmentVariables();
              })
-             .ConfigureLogging((hostContext, configLogging) => { configLogging.AddDebug(); })
+             .ConfigureLogging((hostContext, configLogging) => { configLogging.ClearProviders(); })
              .ConfigureServices((hostContext, services) =>
              {
+                 //hide console messages
+                 services.Configure<ConsoleLifetimeOptions>(
+                     options => options.SuppressStatusMessages = true);
+
                  //setup the configraution manager
                  var configManager = new ConfigManager(hostContext.Configuration);
                  services.AddSingleton<IConfigManager>(configManager);
 
+                 //use json format for reading / writing the manifest
+                 var builder = new JsonManifestBuilder();
+                 var manifest = new SyncManifest(configManager, builder);
+
                  //load manifest from file
-                 var manifest = new SyncManifest(configManager);
                  manifest.ReloadAsync().Wait();
                  services.AddSingleton(manifest);
 
@@ -52,14 +63,8 @@ namespace SyncHole.App
                      Directory.CreateDirectory(path);
                  }
 
-                 //create the file system watcher
-                 var fsWatcher = new FileSystemWatcher(path);
-
                  //show welcome info
                  ConsolePrinter.PrintWelcome(path);
-
-                 //setup the file system watcher
-                 services.AddSingleton(fsWatcher);
 
                  //read config for aws credentials
                  var cred = new AWSCredentials();
@@ -69,7 +74,7 @@ namespace SyncHole.App
                  var client = new AWSGlacierClient(cred);
                  services.AddSingleton<IStorageClient>(client);
 
-                 //add the sync deamon
+                 //add the sync daemon
                  services.AddHostedService<SyncHoleService>();
 
                  //register worker factory

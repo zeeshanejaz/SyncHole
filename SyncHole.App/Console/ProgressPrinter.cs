@@ -33,7 +33,7 @@ namespace SyncHole.App.Console
             System.Console.CursorTop = _lineNumber;
             System.Console.CursorLeft = 57;
             System.Console.WriteLine(" Done");
-            System.Console.Write(string.Empty.PadRight(57));
+            System.Console.Write("Waiting for next job...".PadRight(57));
             System.Console.ForegroundColor = preColor;
             System.Console.CursorLeft = 0;
         }

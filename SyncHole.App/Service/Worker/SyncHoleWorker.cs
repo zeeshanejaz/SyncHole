@@ -1,51 +1,47 @@
-﻿using SyncHole.App.Console;
-using SyncHole.App.Utility;
+﻿using SyncHole.App.Utility;
 using SyncHole.Core.Client;
 using SyncHole.Core.Manifest;
 using SyncHole.Core.Model;
 using System;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SyncHole.App.Service
+namespace SyncHole.App.Service.Worker
 {
     public class SyncHoleWorker : ISyncWorker
     {
         private readonly IStorageClient _client;
         private readonly IConfigManager _configManager;
         private readonly FileInfo _fileInfo;
-        private readonly ProgressPrinter _progressPrinter;
-        private readonly ManifestItem _itemManifest;
+        public event WorkerProgressEventHandler ProgressEvent;
 
         public SyncHoleWorker(IStorageClient client,
             IConfigManager configManager,
-            string filePath)
+            ManifestItem workerState)
         {
-            FilePath = filePath;
+            FilePath = workerState.FilePath;
+            State = workerState;
             _client = client;
             _configManager = configManager;
-            _fileInfo = new FileInfo(filePath);
-            _progressPrinter = new ProgressPrinter();
-
+            _fileInfo = new FileInfo(FilePath);
 
             //use creation time for container name
             var format = _configManager.VaultNameFormat;
             var containerName = _fileInfo.CreationTimeUtc.ToString(format);
-
-            _itemManifest = new ManifestItem
-            {
-                FilePath = _fileInfo.FullName,
-                Status = JobStatus.Pending.ToString(),
-                CurrentPosition = "0",
-                ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture),
-                ContainerName = containerName
-            };
+            State.ContainerName = containerName;
         }
 
-        public ManifestItem ItemManifest => _itemManifest;
+        public bool IsActive { get; private set; }
+
+        public bool HasFailed { get; private set; }
+
+        public Exception Exception { get; private set; }
+
+        public string FilePath { get; }
+
+        public ManifestItem State { get; }
 
         public async Task RunAsync(CancellationToken token)
         {
@@ -60,23 +56,24 @@ namespace SyncHole.App.Service
             {
                 //validate cancellation before making the API call
                 token.ThrowIfCancellationRequested();
-                var job = await _client.InitializeAsync(_itemManifest.ContainerName, _fileInfo.FullName);
-
-                //update manifest to indicate progress
-                _itemManifest.UploadId = job.UploadId;
-                _itemManifest.Status = JobStatus.InProgress.ToString();
+                var job = (State.Status == JobStatus.Pending.ToString())
+                    ? await CreateNewJob() : LoadJobFromState();
 
                 using (var fs = _fileInfo.OpenRead())
                 {
-                    job.TotalSize = _fileInfo.Length;
-                    job.FilePath = _fileInfo.FullName;
-                    UpdateProgress(job);
-
                     var item = new UploadItem
                     {
                         ContentLength = _fileInfo.Length,
                         DataStream = fs
                     };
+
+                    //if this is a resumed job, we need to set the stream position
+                    if (State.Status != JobStatus.Pending.ToString())
+                    {
+                        item.DataStream.Position = job.CurrentPosition;
+                    }
+
+                    UpdateProgress(job, item);
 
                     while (job.CurrentPosition < _fileInfo.Length)
                     {
@@ -87,10 +84,10 @@ namespace SyncHole.App.Service
                         await _client.UploadChunkAsync(job, item);
 
                         //update the manifest
-                        _itemManifest.CurrentPosition = job.CurrentPosition.ToString();
-                        _itemManifest.ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture);
+                        State.CurrentPosition = job.CurrentPosition;
+                        State.ProcessedAt = DateTime.UtcNow;
 
-                        UpdateProgress(job);
+                        UpdateProgress(job, item);
                     }
 
                     //validate cancellation before making the API call
@@ -98,13 +95,13 @@ namespace SyncHole.App.Service
                     var archiveId = await _client.FinishUploadAsync(job, item);
 
                     //mark manifest on complete
-                    _itemManifest.Status = JobStatus.Completed.ToString();
-                    _itemManifest.CurrentPosition = job.CurrentPosition.ToString();
-                    _itemManifest.ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture);
-                    _itemManifest.ArchiveId = archiveId;
+                    State.Status = JobStatus.Completed.ToString();
+                    State.CurrentPosition = job.CurrentPosition;
+                    State.ProcessedAt = DateTime.UtcNow;
+                    State.ArchiveId = archiveId;
 
                     fs.Close();
-                    UpdateProgress(job);
+                    UpdateProgress(job, item);
                 }
 
                 CleanUp();
@@ -115,11 +112,40 @@ namespace SyncHole.App.Service
                 Exception = ex;
 
                 //update manifest to indicate failure
-                _itemManifest.Status = JobStatus.Failed.ToString();
-                _itemManifest.ProcessedAt = DateTime.UtcNow.ToString(CultureInfo.InvariantCulture);
+                State.Status = JobStatus.Failed.ToString();
+                State.ProcessedAt = DateTime.UtcNow;
             }
 
             IsActive = false;
+        }
+
+        private async Task<UploadJob> CreateNewJob()
+        {
+            //initialize new upload
+            var job = await _client.InitializeAsync(State.ContainerName, _fileInfo.FullName);
+            job.TotalSize = _fileInfo.Length;
+            job.FilePath = _fileInfo.FullName;
+
+            //update manifest to indicate progress
+            State.UploadId = job.UploadId;
+            State.Status = JobStatus.InProgress.ToString();
+            State.ChunkHashes = job.ChunkChecksums;
+            State.ChunkSize = job.ChunkSize;
+            return job;
+        }
+
+        private UploadJob LoadJobFromState()
+        {
+            return new UploadJob
+            {
+                FilePath = State.FilePath,
+                CurrentPosition = State.CurrentPosition,
+                UploadId = State.UploadId,
+                TotalSize = _fileInfo.Length,
+                VaultName = State.ContainerName,
+                ChunkChecksums = State.ChunkHashes,
+                ChunkSize = State.ChunkSize
+            };
         }
 
         private void CleanUp()
@@ -156,17 +182,9 @@ namespace SyncHole.App.Service
             }
         }
 
-        public bool IsActive { get; private set; }
-
-        public bool HasFailed { get; private set; }
-
-        public Exception Exception { get; private set; }
-
-        public string FilePath { get; }
-
-        private void UpdateProgress(UploadJob job)
+        private void UpdateProgress(UploadJob job, UploadItem item)
         {
-            _progressPrinter.PrintProgress(job);
+            ProgressEvent?.Invoke(job, item);
         }
     }
 }
