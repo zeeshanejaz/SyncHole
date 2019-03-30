@@ -1,12 +1,16 @@
 # SyncHole
 ![SyncHole Title Image](Images/synchole.png "SyncHole Title Image")
 
-If you are anything like me, you are hoarding huge amounts of data that you cringe at letting go. You know like everything from rare `mp3s` 🎧, music videos that once aired on MTV 📺, home 🏡 movies, DSLR 📸 `raw` images. The problem is that all this data-hoarding eats away at your precious local storage space. 
+If you are anything like me, you are hoarding huge amounts of data that you cringe at letting go. You know like everything from rare `mp3s` 🎧, music videos that once aired on MTV 📺, home movies 🏡, DSLR `raw` images 📸. The problem is that all this data-hoarding eats away at your precious local storage space. 
 
 ## SyncHole to the rescue!
 SyncHole is a drop-in archive 📦 app. It monitors a sync-directory 🗃 to pick-up files and upload them to BYO cloud storage. Once the file is uploaded, it is deleted from your local storage to reclaim space. Don't worry, they are not gone forever. You can always recover them from the cloud storage.
 
 ![SyncHole App Screenshot](Images/screenshot.png "SyncHole App Screenshot")
+
+### Features
+1. Multipart chunk upload for background transfers
+2. Resume functionality for interrupted files
 
 ## AWS S3 Glacier 
 At the moment, only **AWS S3 Glacier** is supported, but you can add support for other cloud storage providers by implementing the `IStorageClient` interface. AWS Glacier ⛰ is a cheap data archival service that doesn't cost you an arm and a leg. You can upload the data right-away, but retrieval has some delay i.e., if you don't want to spend big bucks 💸. This type of delay is fine for archival purposes. You can read more about AWS Glacier [here](https://aws.amazon.com/glacier/).
